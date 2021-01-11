@@ -1,0 +1,78 @@
+//To create database on mongo db.
+use db_order_management
+
+{
+  "name": "Test User 1",
+  "username": "Test-un-1",
+  "country": "US",
+  "address": {
+     "city": "CA",
+     "postCode": 1
+  }
+}
+
+//To create user
+db.createUser(
+   {
+     user: "newUser",
+     pwd: passwordPrompt(),  // Or  "<cleartext password>"
+     roles: [ "readWrite", "dbAdmin" ]
+   }
+)
+
+
+//Collection = table
+db.createCollection("users");
+db.createCollection("orders");
+
+//Generate random 100K users documents
+for (var i = 1; i <= 100000; i++) {
+  db.users.insertOne(
+    {
+      name : "name"+i,
+      username : "username"+i,
+      country: "US"
+    }
+  )
+}
+
+db.users.createIndex({
+user_id: 1, //1: ASC, -1: DESC
+//Of course, we can create compound indexes...
+},
+//Options
+{
+unique: true, //unique index; in here user_id will be unique.
+partialFilterExpression: { valid: { $eq: true } }, //partial index: index for only valid users.
+sparse: true, //Sparse Index: only contain entries for documents that have the indexed field, even if the index field contains a null value. In here, if a document doesnt have user_id, indexing doesnt work for it.
+expireAfterSeconds: 60, //TTL(time-to-live): document indexing will be removed after ttl seconds.
+hidden: true, //to debug the cases with indexing and without indexing.
+collation: { locale: "tr" }, //give specific collations to language-specific rules.
+background: true, //dont lock the table and create slowly index on background.
+})
+
+
+//find by ...
+db.users.find({username: 'username1200'}).explain("executionStats");
+
+//create index
+db.users.createIndex({username:1}, {unique: true});
+
+//aggregation
+db.users.aggregate([
+    {"$group" : {_id:"$role", count:{$sum:1}}}
+])
+
+
+//Rules like RDBMS
+db.runCommand({
+   collMod: "users",
+   validator: {
+      required: ["user-id"],
+      properties: {
+         "user-id": {
+            bsonType: "int",
+            description: "must be an integer"
+         },
+      }
+    }})
